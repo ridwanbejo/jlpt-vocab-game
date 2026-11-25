@@ -1,4 +1,4 @@
-# JLPT Typing Master
+# JLPT Vocabulary Game
 
 ## A. Overview
 
