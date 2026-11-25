@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JLPT Word Match Master — Phaser 3</title>
+  <link rel="stylesheet" href="css/style.css?app=jlpt-match&v=4" />
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.88.2/dist/phaser.min.js"></script>
+</head>
+<body>
+  <!-- Phaser Game Container -->
+  <div id="game-container" aria-label="JLPT Word Match Game Canvas"></div>
+
+  <!-- Compact Top-Centre Session Controls (visible during active gameplay) -->
+  <div id="session-toolbar" class="session-toolbar hidden">
+    <span id="toolbar-board-badge" class="toolbar-badge">BOARD 1 / 1</span>
+    <span id="toolbar-hint" class="toolbar-hint">Left-click a colourful Word block and its matching Answer card</span>
+    <button id="btn-quit-game" type="button" class="btn-mini">End Session</button>
+  </div>
+
+  <!-- Pre-Game Configuration Overlay -->
+  <div id="config-overlay" class="overlay">
+    <div class="modal config-modal">
+      <header class="modal-header">
+        <div class="brand-blocks" aria-hidden="true">
+          <span class="b-tile t1">日</span>
+          <span class="b-tile t2">本</span>
+          <span class="b-tile t3">語</span>
+          <span class="b-tile t4">対</span>
+        </div>
+        <div>
+          <h1>JLPT Word Match Master</h1>
+          <p class="subtitle">Japanese Kanji &amp; Kana Pair-Matching Challenge (N5 – N1)</p>
+        </div>
+        <button id="btn-credits" type="button" class="btn-secondary btn-credits">Credits</button>
+      </header>
+
+      <div id="dataset-loading" class="dataset-banner loading">
+        Loading JLPT vocabulary dataset...
+      </div>
+
+      <form id="config-form" class="config-grid hidden" novalidate>
+        <!-- 1. JLPT Level Selection -->
+        <section class="config-card span-2">
+          <div class="card-head">
+            <label class="section-label">1. JLPT Levels</label>
+            <div class="preset-group" role="group" aria-label="JLPT level presets">
+              <button type="button" class="preset-btn" data-preset="5">N5 Only</button>
+              <button type="button" class="preset-btn" data-preset="5,4">N5 + N4</button>
+              <button type="button" class="preset-btn" data-preset="5,4,3">N5 + N4 + N3</button>
+              <button type="button" class="preset-btn" data-preset="5,4,3,2,1">All Levels</button>
+            </div>
+          </div>
+          <div class="checkbox-row jlpt-row">
+            <label class="chip-check lvl-n5">
+              <input type="checkbox" name="jlpt-level" value="5" checked />
+              <span>N5</span>
+            </label>
+            <label class="chip-check lvl-n4">
+              <input type="checkbox" name="jlpt-level" value="4" />
+              <span>N4</span>
+            </label>
+            <label class="chip-check lvl-n3">
+              <input type="checkbox" name="jlpt-level" value="3" />
+              <span>N3</span>
+            </label>
+            <label class="chip-check lvl-n2">
+              <input type="checkbox" name="jlpt-level" value="2" />
+              <span>N2</span>
+            </label>
+            <label class="chip-check lvl-n1">
+              <input type="checkbox" name="jlpt-level" value="1" />
+              <span>N1</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- 2. Random Word Count -->
+        <section class="config-card">
+          <div class="card-head">
+            <label class="section-label" for="word-count-number">2. Random Words (10 – 200)</label>
+            <input
+              id="word-count-number"
+              type="number"
+              min="10"
+              max="200"
+              step="10"
+              value="20"
+              class="num-input"
+            />
+          </div>
+          <input
+            id="word-count-range"
+            type="range"
+            min="10"
+            max="200"
+            step="10"
+            value="20"
+            class="range-slider"
+          />
+          <div class="range-marks">
+            <span>10 (1 board)</span>
+            <span>50</span>
+            <span>100 (10 boards)</span>
+            <span>200 (20 boards)</span>
+          </div>
+          <div id="cards-multiplier-note" class="multiplier-note">
+            20 words &times; 2 = <strong>40 cards</strong> across <strong>2 boards</strong> (10 pairs / board)
+          </div>
+        </section>
+
+        <!-- 7. Game Time -->
+        <section class="config-card">
+          <div class="card-head">
+            <label class="section-label" for="game-time-range">7. Game Time (1 – 5 min)</label>
+            <span id="game-time-display" class="pill-value">2 min</span>
+          </div>
+          <input
+            id="game-time-range"
+            type="range"
+            min="1"
+            max="5"
+            step="1"
+            value="2"
+            class="range-slider"
+          />
+          <div class="range-marks">
+            <span>1m</span>
+            <span>2m</span>
+            <span>3m</span>
+            <span>4m</span>
+            <span>5m</span>
+          </div>
+          <div class="multiplier-note">
+            Match all boards before the timer expires (+10 pts per pair)
+          </div>
+        </section>
+
+        <!-- 3. Kana Filter -->
+        <section class="config-card">
+          <label class="section-label">3. Kana Script Filter</label>
+          <div class="radio-row">
+            <label class="pill-radio">
+              <input type="radio" name="kana-mode" value="hiragana" />
+              <span>Hiragana Only</span>
+            </label>
+            <label class="pill-radio">
+              <input type="radio" name="kana-mode" value="katakana" />
+              <span>Katakana Only</span>
+            </label>
+            <label class="pill-radio">
+              <input type="radio" name="kana-mode" value="both" checked />
+              <span>Mix of Both</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- 6. Easiness / Difficulty -->
+        <section class="config-card">
+          <div class="card-head">
+            <label class="section-label">6. Easiness Level</label>
+            <span id="easiness-note" class="tiny-note"></span>
+          </div>
+          <div class="radio-row">
+            <label class="pill-radio diff-easy">
+              <input type="radio" name="easiness" value="easy" checked />
+              <span>Easy</span>
+            </label>
+            <label class="pill-radio diff-medium">
+              <input type="radio" name="easiness" value="medium" />
+              <span>Medium</span>
+            </label>
+            <label class="pill-radio diff-hard">
+              <input type="radio" name="easiness" value="hard" />
+              <span>Hard</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- 4 & 5. Definition & Romaji / Kana Answer Toggles -->
+        <section class="config-card span-2">
+          <label class="section-label">4 &amp; 5. Answer Card Content</label>
+          <div class="toggle-row">
+            <label class="toggle-box">
+              <input type="checkbox" id="toggle-definition" checked />
+              <span class="toggle-track"></span>
+              <span class="toggle-text">
+                <strong>Show Definition</strong>
+                <small>Displays the English translation on each answer card</small>
+              </span>
+            </label>
+            <label class="toggle-box">
+              <input type="checkbox" id="toggle-romaji" checked />
+              <span class="toggle-track"></span>
+              <span class="toggle-text">
+                <strong>Show Reading (Romaji / Kana)</strong>
+                <small>Displays Romaji or Kana reading on each answer card</small>
+              </span>
+            </label>
+          </div>
+          <div id="answer-reading-wrap" class="reading-mode-wrap">
+            <div class="card-head reading-mode-head">
+              <span class="reading-mode-label">Kanji Word Answer Format</span>
+              <span class="tiny-note">Hiragana / Katakana questions always show Romaji</span>
+            </div>
+            <div class="radio-row radio-row-2">
+              <label class="pill-radio">
+                <input type="radio" name="answer-reading" value="romaji" checked />
+                <span>Romaji</span>
+              </label>
+              <label class="pill-radio">
+                <input type="radio" name="answer-reading" value="kana" />
+                <span>Kana (Hiragana / Katakana)</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Live Pool Preview & Start CTA -->
+        <div class="config-footer span-2">
+          <div id="pool-summary" class="pool-summary">
+            Matching words: <strong>0</strong>
+          </div>
+          <button id="btn-start-game" type="submit" class="btn-primary">
+            Start Match Challenge
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Game Over / Results Overlay -->
+  <div id="results-overlay" class="overlay hidden">
+    <div class="modal results-modal">
+      <div class="results-badge" id="results-badge">TIME'S UP</div>
+      <h2 id="results-title">Session Complete</h2>
+      <p id="results-subtitle" class="subtitle"></p>
+
+      <div class="stats-grid">
+        <div class="stat-card accent-gold">
+          <span class="stat-label">Final Score</span>
+          <strong class="stat-value" id="res-score">0</strong>
+          <span class="stat-unit">points (+10 / pair)</span>
+        </div>
+        <div class="stat-card accent-cyan">
+          <span class="stat-label">Match Speed</span>
+          <strong class="stat-value" id="res-ppm">0.0</strong>
+          <span class="stat-unit">Match Pairs / Min</span>
+        </div>
+        <div class="stat-card accent-emerald">
+          <span class="stat-label">Pairs Matched</span>
+          <strong class="stat-value" id="res-cleared">0 / 0</strong>
+          <span class="stat-unit" id="res-boards">Boards: 0 / 0 &bull; 0:00</span>
+        </div>
+        <div class="stat-card accent-pink">
+          <span class="stat-label">Accuracy</span>
+          <strong class="stat-value" id="res-accuracy">100%</strong>
+          <span class="stat-unit" id="res-mistakes">0 mismatches</span>
+        </div>
+      </div>
+
+      <div class="results-actions">
+        <button id="btn-play-again" type="button" class="btn-primary">Play Again</button>
+        <button id="btn-back-config" type="button" class="btn-secondary">Change Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credits Popup Overlay -->
+  <div id="credits-overlay" class="overlay overlay-top hidden" role="dialog" aria-modal="true" aria-labelledby="credits-modal-title">
+    <div class="modal credits-modal">
+      <div class="credits-header">
+        <h2 id="credits-modal-title">Credits</h2>
+        <button id="btn-close-credits-x" type="button" class="btn-icon-close" aria-label="Close credits">&times;</button>
+      </div>
+      <div id="credits-content" class="credits-content">
+        <p class="credits-status">Loading credits...</p>
+      </div>
+      <div class="credits-actions">
+        <button id="btn-close-credits" type="button" class="btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/vocabLoader.js?app=jlpt-match&v=4"></script>
+  <script src="js/gameScene.js?app=jlpt-match&v=4"></script>
+  <script src="js/main.js?app=jlpt-match&v=4"></script>
+</body>
+</html>
