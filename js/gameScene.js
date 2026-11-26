@@ -58,6 +58,8 @@
 
       this.timerEvent = null;
       this.bgShapes = [];
+      this.modeController = null;
+      this.customProgressText = null;
     }
 
     preload() {
@@ -428,20 +430,371 @@
     }
 
     /**
-     * Start a new match-pair session across one or more boards (10 words per board).
-     * @param {Array<Array<object>>} boards
-     * @param {object} config
-     * @param {{ onGameOver?: Function, onBoardChange?: Function }} callbacks
+     * Allow touch / pen pointers and mouse left-click only.
      */
-    startSession(boards, config, callbacks) {
+    isPrimaryPointer(pointer) {
+      if (!pointer) return true;
+      if (pointer.pointerType && pointer.pointerType !== 'mouse') return true;
+      return pointer.button === 0;
+    }
+
+    /**
+     * Draw a glossy colourful 3D block (shared across Match Pairs, Multiple Choice, Jumble, Weaver).
+     */
+    paintGlossyBlock(g, w, h, baseColor, state = 'normal') {
+      g.clear();
+      const halfW = w / 2;
+      const halfH = h / 2;
+      const radius = 14;
+      const isSuccess = state === 'success';
+      const isError = state === 'error';
+      const isSelected = state === 'selected';
+      const isHover = state === 'hover';
+
+      g.fillStyle(0x030712, 0.45);
+      g.fillRoundedRect(-halfW + 3, -halfH + 6, w, h, radius);
+
+      if (isSuccess) {
+        g.fillStyle(0x22c55e, 0.42);
+        g.fillRoundedRect(-halfW - 6, -halfH - 6, w + 12, h + 12, radius + 5);
+      } else if (isError) {
+        g.fillStyle(0xef4444, 0.42);
+        g.fillRoundedRect(-halfW - 6, -halfH - 6, w + 12, h + 12, radius + 5);
+      } else if (isSelected) {
+        g.fillStyle(0xffca3a, 0.34);
+        g.fillRoundedRect(-halfW - 5, -halfH - 5, w + 10, h + 10, radius + 4);
+      }
+
+      const mainColor = isSuccess ? 0x10b981 : isError ? 0xdc2626 : baseColor;
+      const colorObj = Phaser.Display.Color.IntegerToColor(mainColor);
+      const darkBevel = Phaser.Display.Color.GetColor(
+        Math.max(0, colorObj.red - 58),
+        Math.max(0, colorObj.green - 58),
+        Math.max(0, colorObj.blue - 58)
+      );
+
+      g.fillStyle(mainColor, 1);
+      g.fillRoundedRect(-halfW, -halfH, w, h, radius);
+
+      const sheenH = Math.round(h * 0.46);
+      const curveR = Math.min(20, Math.floor(sheenH * 0.42));
+      g.fillStyle(0xffffff, isError || isSuccess ? 0.1 : 0.14);
+      g.fillRoundedRect(-halfW + 3, -halfH + 3, w - 6, sheenH, {
+        tl: radius - 2,
+        tr: radius - 2,
+        bl: curveR,
+        br: curveR,
+      });
+
+      g.fillStyle(darkBevel, 0.92);
+      g.fillRoundedRect(-halfW + 1, halfH - 9, w - 2, 9, {
+        tl: 0,
+        tr: 0,
+        bl: radius,
+        br: radius,
+      });
+
+      g.fillStyle(0xffffff, isError || isSuccess ? 0.25 : 0.36);
+      g.fillRoundedRect(-halfW + 10, -halfH + 5, w - 20, Math.max(6, Math.round(h * 0.085)), 4);
+
+      g.lineStyle(1, 0xffffff, 0.26);
+      g.strokeRoundedRect(-halfW + 2.5, -halfH + 2.5, w - 5, h - 5, radius - 2);
+
+      if (isSuccess) g.lineStyle(3.5, 0x86efac, 1);
+      else if (isError) g.lineStyle(3.5, 0xfca5a5, 1);
+      else if (isSelected) g.lineStyle(3.5, 0xffca3a, 1);
+      else if (isHover) g.lineStyle(2.5, 0xffffff, 0.95);
+      else g.lineStyle(1.8, 0xffffff, 0.42);
+      g.strokeRoundedRect(-halfW, -halfH, w, h, radius);
+    }
+
+    /**
+     * Draw a glossy sapphire glass card (shared across Answer cards, options, clue cards).
+     */
+    paintGlossyGlass(g, w, h, state = 'normal') {
+      g.clear();
+      const halfW = w / 2;
+      const halfH = h / 2;
+      const radius = 14;
+      const isSuccess = state === 'success';
+      const isError = state === 'error';
+      const isSelected = state === 'selected';
+      const isHover = state === 'hover';
+
+      g.fillStyle(0x030712, 0.45);
+      g.fillRoundedRect(-halfW + 3, -halfH + 6, w, h, radius);
+
+      if (isSuccess) {
+        g.fillStyle(0x22c55e, 0.42);
+        g.fillRoundedRect(-halfW - 6, -halfH - 6, w + 12, h + 12, radius + 5);
+      } else if (isError) {
+        g.fillStyle(0xef4444, 0.42);
+        g.fillRoundedRect(-halfW - 6, -halfH - 6, w + 12, h + 12, radius + 5);
+      } else if (isSelected) {
+        g.fillStyle(0xffca3a, 0.34);
+        g.fillRoundedRect(-halfW - 5, -halfH - 5, w + 10, h + 10, radius + 4);
+      }
+
+      const baseBody = isSuccess ? 0x047857 : isError ? 0x991b1b : 0x071d4d;
+      const upperTint = isSuccess ? 0x10b981 : isError ? 0xdc2626 : 0x143c8c;
+      const bottomBevel = isSuccess ? 0x064e3b : isError ? 0x7f1d1d : 0x03102e;
+      const accentRim = isSuccess ? 0x4ade80 : isError ? 0xf87171 : 0x38bdf8;
+
+      g.fillStyle(baseBody, 0.97);
+      g.fillRoundedRect(-halfW, -halfH, w, h, radius);
+
+      const upperH = Math.round(h * 0.52);
+      const upperR = Math.min(22, Math.floor(upperH * 0.42));
+      g.fillStyle(upperTint, 0.58);
+      g.fillRoundedRect(-halfW + 2, -halfH + 2, w - 4, upperH, {
+        tl: radius - 1,
+        tr: radius - 1,
+        bl: upperR,
+        br: upperR,
+      });
+
+      const frostH = Math.round(h * 0.42);
+      const frostR = Math.min(18, Math.floor(frostH * 0.42));
+      g.fillStyle(0xffffff, 0.1);
+      g.fillRoundedRect(-halfW + 4, -halfH + 4, w - 8, frostH, {
+        tl: radius - 3,
+        tr: radius - 3,
+        bl: frostR,
+        br: frostR,
+      });
+
+      g.fillStyle(bottomBevel, 0.92);
+      g.fillRoundedRect(-halfW + 1, halfH - 8, w - 2, 8, {
+        tl: 0,
+        tr: 0,
+        bl: radius,
+        br: radius,
+      });
+
+      g.fillStyle(accentRim, 0.85);
+      g.fillRoundedRect(-halfW + 4, -halfH + 2, w - 8, 3.5, { tl: radius, tr: radius, bl: 2, br: 2 });
+
+      g.fillStyle(0xffffff, 0.32);
+      g.fillRoundedRect(-halfW + 12, -halfH + 7, w - 24, Math.max(5, Math.round(h * 0.07)), 4);
+
+      g.lineStyle(1, 0xbae6fd, 0.28);
+      g.strokeRoundedRect(-halfW + 2.5, -halfH + 2.5, w - 5, h - 5, radius - 2);
+
+      if (isSuccess) g.lineStyle(3.5, 0x86efac, 1);
+      else if (isError) g.lineStyle(3.5, 0xfca5a5, 1);
+      else if (isSelected) g.lineStyle(3.5, 0xffca3a, 1);
+      else if (isHover) g.lineStyle(2.5, 0xffffff, 0.95);
+      else g.lineStyle(2, 0x60a5fa, 0.65);
+      g.strokeRoundedRect(-halfW, -halfH, w, h, radius);
+    }
+
+    spawnGreenBurst(wx, wy, radiusHint = 34) {
+      const greenBurst = this.add.particles(wx, wy, 'particle-square', {
+        speed: { min: 100, max: 320 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1.05, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: { min: 380, max: 720 },
+        gravityY: 340,
+        rotate: { min: -240, max: 240 },
+        tint: [0x10b981, 0x22c55e, 0x4ade80, 0x86efac],
+        emitting: false,
+      });
+      greenBurst.setDepth(24);
+      greenBurst.explode(16);
+      this.scheduleCall(780, () => {
+        if (greenBurst && greenBurst.active) greenBurst.destroy();
+      });
+
+      const sparks = this.add.particles(wx, wy, 'particle-spark', {
+        speed: { min: 130, max: 340 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.9, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: { min: 260, max: 480 },
+        tint: [0x4ade80, 0xa7f3d0, 0xfde047],
+        emitting: false,
+      });
+      sparks.setDepth(25);
+      sparks.explode(8);
+      this.scheduleCall(540, () => {
+        if (sparks && sparks.active) sparks.destroy();
+      });
+
+      const ring = this.add
+        .circle(wx, wy, Math.max(16, radiusHint))
+        .setStrokeStyle(4, 0x4ade80, 0.95)
+        .setFillStyle(0x22c55e, 0.14)
+        .setDepth(23);
+      this.tweens.add({
+        targets: ring,
+        scale: 2.0,
+        alpha: 0,
+        duration: 340,
+        ease: 'Cubic.easeOut',
+        onComplete: () => ring.destroy(),
+      });
+    }
+
+    awardCorrect(wx, wy, points = 10) {
+      this.sound.play('sfx-success', { volume: 0.75 });
+      this.score += points;
+      this.pairsMatched += 1;
+      this.streak += 1;
+
+      const plusTxt = this.add
+        .text(wx, wy - 10, `+${points}`, {
+          fontFamily: FONT_MONO,
+          fontSize: '34px',
+          fontStyle: 'bold',
+          color: '#4ade80',
+          stroke: '#052e16',
+          strokeThickness: 6,
+        })
+        .setOrigin(0.5)
+        .setDepth(27);
+
+      this.tweens.add({
+        targets: plusTxt,
+        y: wy - 84,
+        scale: 1.25,
+        alpha: 0,
+        duration: 660,
+        ease: 'Cubic.easeOut',
+        onComplete: () => plusTxt.destroy(),
+      });
+
+      this.cameras.main.shake(75, 0.0022);
+      this.updateHUDValues();
+      this.tweens.add({
+        targets: this.scoreValueText,
+        scale: 1.28,
+        duration: 110,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
+    }
+
+    recordMistake(wx, wy, label = '✗ Incorrect') {
+      this.sound.play('sfx-fail', { volume: 0.78 });
+      this.mistakes += 1;
+      this.streak = 0;
+      this.updateHUDValues();
+
+      const errLabel = this.add
+        .text(wx, wy, label, {
+          fontFamily: FONT_UI,
+          fontSize: '16px',
+          fontStyle: 'bold',
+          color: '#fca5a5',
+          stroke: '#450a0a',
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5)
+        .setDepth(27);
+
+      this.tweens.add({
+        targets: errLabel,
+        y: errLabel.y - 24,
+        alpha: 0,
+        duration: 620,
+        ease: 'Cubic.easeOut',
+        onComplete: () => errLabel.destroy(),
+      });
+    }
+
+    shakeCard(container, baseX) {
+      this.tweens.killTweensOf(container);
+      container.x = baseX;
+      this.tweens.add({
+        targets: container,
+        x: baseX + 12,
+        duration: 45,
+        yoyo: true,
+        repeat: 4,
+        ease: 'Sine.easeInOut',
+        onComplete: () => {
+          if (container && container.active) container.x = baseX;
+        },
+      });
+    }
+
+    setProgressText(str) {
+      this.customProgressText = str;
+      this.progressText.setText(str);
+    }
+
+    notifyBoardChange(label) {
+      if (this.callbacks && typeof this.callbacks.onBoardLabel === 'function') {
+        this.callbacks.onBoardLabel(label);
+      }
+    }
+
+    hideTransitionBanner() {
+      if (!this.bannerLayer) return;
+      this.tweens.killTweensOf(this.bannerLayer);
+      this.bannerLayer.removeAll(true);
+      this.bannerLayer.setAlpha(1);
+    }
+
+    showTransitionBanner(titleText, subtitleText) {
+      const m = this.getLayoutMetrics();
+      this.hideTransitionBanner();
+
+      const boxW = 440;
+      const boxH = 112;
+      const bg = this.add.graphics();
+      bg.fillStyle(0x031c52, 0.94);
+      bg.fillRoundedRect(m.centerX - boxW / 2, m.centerY - boxH / 2, boxW, boxH, 18);
+      bg.lineStyle(3, 0x4ade80, 0.95);
+      bg.strokeRoundedRect(m.centerX - boxW / 2, m.centerY - boxH / 2, boxW, boxH, 18);
+
+      const title = this.add
+        .text(m.centerX, m.centerY - 16, titleText, {
+          fontFamily: FONT_UI,
+          fontSize: '26px',
+          fontStyle: 'bold',
+          color: '#4ade80',
+        })
+        .setOrigin(0.5);
+
+      const sub = this.add
+        .text(m.centerX, m.centerY + 20, subtitleText, {
+          fontFamily: FONT_UI,
+          fontSize: '15px',
+          fontStyle: '600',
+          color: '#dbeafe',
+        })
+        .setOrigin(0.5);
+
+      this.bannerLayer.add([bg, title, sub]);
+      this.bannerLayer.setAlpha(0);
+      this.tweens.add({
+        targets: this.bannerLayer,
+        alpha: 1,
+        duration: 180,
+        ease: 'Quad.easeOut',
+      });
+    }
+
+    finishModeSession(reason = 'completed') {
+      this.endSession(reason);
+    }
+
+    /**
+     * Start a new game session across any configured mode ('match', 'multiple-choice', 'crosswords', 'wordsearch', 'jumble', 'weaver').
+     * @param {object | Array} sessionData
+     * @param {object} config
+     * @param {{ onGameOver?: Function, onBoardChange?: Function, onBoardLabel?: Function }} callbacks
+     */
+    startSession(sessionData, config, callbacks) {
       this.cleanupSession();
 
       this.config = config;
       this.callbacks = callbacks || {};
-      this.boards = boards;
+      this.customProgressText = null;
       this.currentBoardIndex = 0;
       this.boardsCompleted = 0;
-      this.totalPairs = boards.reduce((sum, b) => sum + b.length, 0);
 
       this.score = 0;
       this.pairsMatched = 0;
@@ -462,10 +815,32 @@
       this.setHUDVisible(true);
       this.drawBackgroundGrid();
       this.layoutHUD();
-      this.updateHUDValues();
       this.updateTimerDisplay(true);
 
-      this.loadBoard(0);
+      const mode = config.gameMode || 'match';
+
+      if (mode === 'match') {
+        const boards = Array.isArray(sessionData) ? sessionData : sessionData.boards || [];
+        this.boards = boards;
+        this.totalPairs = boards.reduce((sum, b) => sum + b.length, 0);
+        this.updateHUDValues();
+        this.loadBoard(0);
+      } else {
+        const modes = global.JLPTExtraModes || {};
+        const controllerMap = {
+          'multiple-choice': modes.MultipleChoiceController,
+          crosswords: modes.CrosswordsController,
+          wordsearch: modes.WordsearchController,
+          jumble: modes.JumbleController,
+          weaver: modes.WeaverController,
+        };
+        const ControllerCtor = controllerMap[mode];
+        if (ControllerCtor) {
+          this.modeController = new ControllerCtor(this, sessionData);
+          this.modeController.start();
+          this.updateHUDValues();
+        }
+      }
 
       this.timerEvent = this.time.addEvent({
         delay: 100,
@@ -482,6 +857,14 @@
         this.timerEvent = null;
       }
 
+      if (this.modeController) {
+        if (typeof this.modeController.destroy === 'function') {
+          this.modeController.destroy();
+        }
+        this.modeController = null;
+      }
+
+      this.customProgressText = null;
       this.clearTrackedTimers();
       this.selectedCard = null;
       this.clearedSlots.clear();
@@ -1438,10 +1821,14 @@
 
     updateHUDValues() {
       this.scoreValueText.setText(String(this.score));
-      const boardNum = Math.min(this.currentBoardIndex + 1, Math.max(1, this.boards.length));
-      this.progressText.setText(
-        `Board ${boardNum}/${this.boards.length}  •  Pairs: ${this.pairsMatched}/${this.totalPairs}`
-      );
+      if (this.modeController && this.customProgressText) {
+        this.progressText.setText(this.customProgressText);
+      } else {
+        const boardNum = Math.min(this.currentBoardIndex + 1, Math.max(1, this.boards.length));
+        this.progressText.setText(
+          `Board ${boardNum}/${this.boards.length}  •  Pairs: ${this.pairsMatched}/${this.totalPairs}`
+        );
+      }
       this.streakText.setText(
         this.streak > 1 ? `Streak: x${this.streak}` : `Mismatches: ${this.mistakes}`
       );
@@ -1488,6 +1875,13 @@
       this.drawBackgroundGrid();
       this.layoutHUD();
 
+      if (this.modeController) {
+        if (typeof this.modeController.handleResize === 'function') {
+          this.modeController.handleResize();
+        }
+        return;
+      }
+
       if (!this.cards || this.cards.length === 0 || !this.currentCardCount) return;
 
       const layout = this.getGridLayout(this.currentCardCount);
@@ -1523,6 +1917,12 @@
         this.timerEvent = null;
       }
       this.clearTrackedTimers();
+      this.hideTransitionBanner();
+
+      if (this.modeController && typeof this.modeController.destroy === 'function') {
+        this.modeController.destroy();
+        this.modeController = null;
+      }
 
       // Disable remaining cards immediately
       for (const card of this.cards) {
@@ -1545,6 +1945,7 @@
 
       if (this.callbacks && typeof this.callbacks.onGameOver === 'function') {
         this.callbacks.onGameOver({
+          gameMode: (this.config && this.config.gameMode) || 'match',
           reason,
           score: this.score,
           pairsMatched: this.pairsMatched,

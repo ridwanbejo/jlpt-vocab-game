@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>JLPT Word Match Master — Phaser 3</title>
-  <link rel="stylesheet" href="css/style.css?app=jlpt-match&v=4" />
+  <title>JLPT Vocab Game — Phaser 3</title>
+  <link rel="stylesheet" href="css/style.css?app=jlpt-match&v=5" />
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.88.2/dist/phaser.min.js"></script>
 </head>
 <body>
@@ -29,8 +29,8 @@
           <span class="b-tile t4">対</span>
         </div>
         <div>
-          <h1>JLPT Word Match Master</h1>
-          <p class="subtitle">Japanese Kanji &amp; Kana Pair-Matching Challenge (N5 – N1)</p>
+          <h1>JLPT Vocab Master</h1>
+          <p class="subtitle">Multi-Mode Japanese Kanji &amp; Kana Training Arena (N5 – N1)</p>
         </div>
         <button id="btn-credits" type="button" class="btn-secondary btn-credits">Credits</button>
       </header>
@@ -40,6 +40,58 @@
       </div>
 
       <form id="config-form" class="config-grid hidden" novalidate>
+        <!-- 0. Game Mode Selection -->
+        <section class="config-card span-2">
+          <div class="card-head">
+            <label class="section-label">Game Mode</label>
+            <span class="tiny-note">Select how you want to practise JLPT vocabulary</span>
+          </div>
+          <div class="mode-grid" role="radiogroup" aria-label="Game Mode">
+            <label class="mode-pill mode-match">
+              <input type="radio" name="game-mode" value="match" checked />
+              <span class="mode-pill-body">
+                <strong>Match Pairs</strong>
+                <small>Pair Kanji blocks with answers</small>
+              </span>
+            </label>
+            <label class="mode-pill mode-mc">
+              <input type="radio" name="game-mode" value="multiple-choice" />
+              <span class="mode-pill-body">
+                <strong>Multiple Choices</strong>
+                <small>Touch &amp; pick the right answer</small>
+              </span>
+            </label>
+            <label class="mode-pill mode-cw">
+              <input type="radio" name="game-mode" value="crosswords" />
+              <span class="mode-pill-body">
+                <strong>Crosswords</strong>
+                <small>Select across/down line &amp; answer</small>
+              </span>
+            </label>
+            <label class="mode-pill mode-ws">
+              <input type="radio" name="game-mode" value="wordsearch" />
+              <span class="mode-pill-body">
+                <strong>Wordsearch</strong>
+                <small>Trace horizontal or vertical lines</small>
+              </span>
+            </label>
+            <label class="mode-pill mode-jm">
+              <input type="radio" name="game-mode" value="jumble" />
+              <span class="mode-pill-body">
+                <strong>Jumble Words</strong>
+                <small>Drag &amp; drop letters in order</small>
+              </span>
+            </label>
+            <label class="mode-pill mode-wv">
+              <input type="radio" name="game-mode" value="weaver" />
+              <span class="mode-pill-body">
+                <strong>Weaver / Ladder</strong>
+                <small>Step 1 char at a time to goal</small>
+              </span>
+            </label>
+          </div>
+        </section>
+
         <!-- 1. JLPT Level Selection -->
         <section class="config-card span-2">
           <div class="card-head">
@@ -109,30 +161,39 @@
           </div>
         </section>
 
-        <!-- 7. Game Time -->
+        <!-- 7. Game Time (1 - 60 min / 1 hour) -->
         <section class="config-card">
           <div class="card-head">
-            <label class="section-label" for="game-time-range">7. Game Time (1 – 5 min)</label>
-            <span id="game-time-display" class="pill-value">2 min</span>
+            <label class="section-label" for="game-time-number">7. Game Time (1 – 60 min)</label>
+            <div class="time-input-group">
+              <input
+                id="game-time-number"
+                type="number"
+                min="1"
+                max="60"
+                step="1"
+                value="2"
+                class="num-input num-input-sm"
+              />
+              <span id="game-time-display" class="pill-value">2 min</span>
+            </div>
           </div>
           <input
             id="game-time-range"
             type="range"
             min="1"
-            max="5"
+            max="60"
             step="1"
             value="2"
             class="range-slider"
           />
-          <div class="range-marks">
-            <span>1m</span>
-            <span>2m</span>
-            <span>3m</span>
-            <span>4m</span>
-            <span>5m</span>
-          </div>
-          <div class="multiplier-note">
-            Match all boards before the timer expires (+10 pts per pair)
+          <div class="time-presets" role="group" aria-label="Quick time presets">
+            <button type="button" class="preset-btn time-preset-btn" data-minutes="2">2m</button>
+            <button type="button" class="preset-btn time-preset-btn" data-minutes="5">5m</button>
+            <button type="button" class="preset-btn time-preset-btn" data-minutes="10">10m</button>
+            <button type="button" class="preset-btn time-preset-btn" data-minutes="15">15m</button>
+            <button type="button" class="preset-btn time-preset-btn" data-minutes="30">30m</button>
+            <button type="button" class="preset-btn time-preset-btn" data-minutes="60">1 hr</button>
           </div>
         </section>
 
@@ -240,15 +301,15 @@
         <div class="stat-card accent-gold">
           <span class="stat-label">Final Score</span>
           <strong class="stat-value" id="res-score">0</strong>
-          <span class="stat-unit">points (+10 / pair)</span>
+          <span class="stat-unit" id="res-score-unit">points (+10 / pair)</span>
         </div>
         <div class="stat-card accent-cyan">
-          <span class="stat-label">Match Speed</span>
+          <span class="stat-label">Speed</span>
           <strong class="stat-value" id="res-ppm">0.0</strong>
-          <span class="stat-unit">Match Pairs / Min</span>
+          <span class="stat-unit" id="res-speed-unit">Match Pairs / Min</span>
         </div>
         <div class="stat-card accent-emerald">
-          <span class="stat-label">Pairs Matched</span>
+          <span class="stat-label" id="res-cleared-label">Pairs Matched</span>
           <strong class="stat-value" id="res-cleared">0 / 0</strong>
           <span class="stat-unit" id="res-boards">Boards: 0 / 0 &bull; 0:00</span>
         </div>
@@ -282,8 +343,10 @@
     </div>
   </div>
 
-  <script src="js/vocabLoader.js?app=jlpt-match&v=4"></script>
-  <script src="js/gameScene.js?app=jlpt-match&v=4"></script>
-  <script src="js/main.js?app=jlpt-match&v=4"></script>
+  <script src="js/vocabLoader.js?app=jlpt-match&v=6"></script>
+  <script src="js/puzzleGenerators.js?app=jlpt-match&v=6"></script>
+  <script src="js/extraModes.js?app=jlpt-match&v=6"></script>
+  <script src="js/gameScene.js?app=jlpt-match&v=6"></script>
+  <script src="js/main.js?app=jlpt-match&v=6"></script>
 </body>
 </html>
